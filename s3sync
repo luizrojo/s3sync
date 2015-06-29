@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# Variáveis globais
+app="s3sync"
+logdir="diretório_de_logs"
+logfile="diretório_de_logs/s3sync.log"
+pid_file="/var/run/s3sync.pid"
+s3sync=`which s3sync`
+
+# Função de usage
+usage () {
+
+		#Faz a saida do usage para caso estejam faltando opções de execução do script
+		echo "-----------------------------------------"
+		echo "- Script de incialização do sync do S3  -"
+		echo "-----------------------------------------"
+		echo ""
+		echo " USAGE: $0 (START|STOP|RESTART)"
+		echo ""
+
+}
+
+getPid () {
+
+	# Pega a porta da API
+	sleep 0.5
+	PID=`ps -ef | grep $app | egrep -v "grep|blogs" | grep -v init.d | awk {'print $2'} `
+
+}
+
+# Função de start
+start () {
+	
+	getPid
+
+	# Verifica se a aplicação esta rodando
+	if [ -e $pid_file ]; then
+	
+		pidfile_pid=`cat $pid_file`
+
+		if [ "$pidfile_pid" = "$PID" ]; then
+
+			echo "S3 Sync ja está rodando [$PID]"
+			exit 1
+
+		else
+
+			echo "S3 Sync não esta rodando, mas o pid file existe [$pid_file]"
+			exit 1
+
+		fi
+
+	else
+
+		if [ $PID ]; then
+
+			echo "S3 Sync está rodando, mas sem um pid file [$PID]"
+			exit 1
+
+		fi
+
+	fi
+
+	# Verifica se o diretório da aplicação existe
+	if [ ! -d $log_dir ]; then
+	
+		mkdir $log_dir
+
+	fi
+
+	# Sobe o S3 Sync
+
+	( $s3sync & )
+
+	# Pega o PID da aplicação
+	getPid
+
+	# Verifica se o start ocorreu
+	if [ $PID ]; then
+
+		echo "S3 Sync iniciado com pid [$PID]"
+		echo $PID > $pid_file
+
+	fi
+
+}
+
+# Função de stop
+stop () {
+
+	# Verifica qual o PID da aplicação em execução
+	if [ -e $pid_file ]; then
+
+		current_pid=`cat $pid_file`
+
+		rm $pid_file
+
+	fi
+
+	# Verifica se a aplicação esta ou não rodando e finaliza 
+	# o processo se estiver em execução
+	if [ ! $current_pid ]; then
+
+		echo "A aplicação não esta rodando"
+
+	else
+
+		echo "Parando o s3 sync [$current_pid]"
+		kill $current_pid > /dev/null
+
+	fi
+
+}
+
+restart () {
+
+	stop $1
+
+	start $1
+
+}
+
+# Valida se o diretório do log existe
+if [ ! -d $log_path ]; then
+
+	mkdir $log_path
+
+fi
+
+# Case de options do script
+case $1 in
+
+	start )
+
+		start
+
+	;;
+
+	stop )
+
+		stop
+
+	;;
+
+	restart )
+
+		restart
+
+	;;
+
+	* )
+
+		usage
+
+	;;
+
+esac
